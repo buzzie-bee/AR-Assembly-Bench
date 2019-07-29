@@ -29,16 +29,16 @@ import numpy
 
 class DisplayImage(Image):
 
-    def __init__(self,image_num=1,coords=(620,360), angle=315,**kwargs):
+    def __init__(self,image_num=1,coords=(620,360), angle=315,filename='keyence.png',**kwargs):
         image = ImageProps()
-        self.source=image.filename
+        self.source=filename
         self.size= image.size
         self.size_hint=(None,None)
         self.allow_stretch=(True)
         self.coords = coords
         self.pos= (coords[0]-image.offset[0], coords[1] - image.offset[1])
         self.angle = angle
-        print(self.pos)
+        #print(self.pos)
 
         super(DisplayImage, self).__init__(**kwargs)
 
@@ -62,7 +62,7 @@ class ImageProps():
 
     def __init__(self, image_number=1, scale_f=1):
 
-        print("looking up image props")
+        #print("looking up image props")
         self.size = (100,20)
         self.offset = (self.size[0]/2,self.size[1]/2)
         #self.offset = (0,0)
@@ -87,15 +87,15 @@ class ImageProps():
         rect_y3 = int(image_pos[1] + (rect_width * math.sin(a)) - (rect_height * math.cos(a)))
         rect_y4 = int(image_pos[1] - (rect_width * math.sin(a)) - (rect_height * math.cos(a)))
         vertices = [rect_x1,rect_y1,rect_x2,rect_y2,rect_x3,rect_y3,rect_x4,rect_y4,rect_x1,rect_y1]
-        print(vertices)
+        #print(vertices)
         return vertices
 
 
 
 class DisplayLabel(Label):
 
-    def __init__(self, image_coords=(0,0), image_angle=0,image_size=(200,200), **kwargs):
-        self.text = 'testing'
+    def __init__(self, image_coords=(0,0), image_angle=0,image_size=(200,200), label_text='', **kwargs):
+        self.text = label_text
         self.font_size = 30
         self.size_hint = (None,None)
         self.halign = 'center'
@@ -119,7 +119,7 @@ class DisplayLabel(Label):
         new_x = image_coords[0] + ((1.5 * image_size[1]) * math.cos(math.radians(image_angle + 90)))
         new_y = image_coords[1] + ((1.5 * image_size[1]) * math.sin(math.radians(image_angle + 90)))
         new_coords = (int(new_x), int(new_y))
-        print(new_coords)
+        #print(new_coords)
         return new_coords
 
 
@@ -165,30 +165,45 @@ class MyLayout(FloatLayout):
     def __init__(self, **kwargs):
         super(MyLayout, self).__init__(**kwargs)
         #layout = ScatterLayout()
+        self.cvx = Cvx_comms()
+        self.step = Step()
+
+
         self.image_one = DisplayImage()
         self.add_widget(self.image_one)
-        self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size)
+        self.label_one_text = ''
+        self.label_two_text=''
+        self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size, label_text=self.label_one_text)
         self.add_widget(self.label_one)
         self.image_two=DisplayImage()
-        self.label_two=DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_one.size)
+        self.label_two=DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_one.size, label_text=self.label_one_text)
         self.add_widget(self.image_two)
         self.add_widget(self.label_two)
 
-        self.next_step = NextStepButton()
-        self.next_step.bind(on_press=self.button_pressed)
-        self.add_widget(self.next_step)
+        self.next_step_button = NextStepButton()
+        self.next_step_button.bind(on_press=self.next_step)
+        self.add_widget(self.next_step_button)
 
         self.calibration = CalibrationLine()
         self.calibration.bind(on_press=self.remove_calibration)
         self.add_widget(self.calibration)
         
-        self.cvx = Cvx_comms()
-
+        
         Clock.schedule_interval(self.move_images, 1)
+        #Clock.schedule_interval(self.test_move_images, 1)
 
     def button_pressed(self, *args):
         print('button was pressed!')
 
+
+    def next_step(self, *args):
+        if self.step.step_count < self.step.max_step:
+            print('current step is: ', self.step.step_count)
+            self.step.increment()
+            print('increased step to : ', self.step.step_count)
+        else:
+            self.step.reset()
+            print('reset steps to :', self.step.step_count)
 
     def remove_calibration(self, *args):
         self.remove_widget(self.calibration)
@@ -197,6 +212,9 @@ class MyLayout(FloatLayout):
     def move_images(self, image_one):
         try:
             image_one_coords, image_two_coords = self.cvx.coords()
+            image_one_filename, image_two_filename = self.step.filenames()
+            label_one_text, label_two_text = self.step.labels()
+
             if len(image_one_coords) == 3:
                 self.remove_widget(self.image_one)
                 self.remove_widget(self.label_one)
@@ -214,33 +232,64 @@ class MyLayout(FloatLayout):
             print('Error in move images')
 
 
+class Step():
+    #this class will contain all the logic to get the stuff out of the csv file
+    def __init__(self, *args):
+        self.step_count = 0
+        self.max_step=10
 
-    def test_move(self, dt):
-        self.remove_widget(self.image_one)
-        self.remove_widget(self.label_one)
-        if hasattr(self, 'image_two'):
-            self.remove_widget(self.image_two)
-            self.remove_widget(self.label_two)
-        rw = random.randint(100,500)
-        rh = random.randint(100,500)
-        ra = random.randint(0,360)
-        self.image_one = DisplayImage(coords=(rw,rh), angle=ra)
-        self.image_two = DisplayImage(coords=(rh,rw), angle=ra)
-        self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size)
-        self.label_two = DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_two.size)
-        self.add_widget(self.image_one)
-        self.add_widget(self.label_one)
-        self.add_widget(self.image_two)
-        self.add_widget(self.label_two)
+    def max_step(self):
+        return self.max_step
+
+    def set_max_step(self, max_steps=10):
+        self.max_step = max_steps
+
+    def filenames(self, *args):
+        return 'keyence.png', 'keyence.png'
+
+    def labels(self):
+        return 'label_one', 'label_two'
+
+    def increment(self, *args):
+        self.step_count += 1
+
+    def reset(self, new_starting_step=0):
+        self.step_count = new_starting_step
+    # def test_move_images(self, *args):
+
+    #     ## Had an idea to not delete and draw new images every update, scrapping it for now. I can change image properties (i.e. coords) and have 
+    #     ## that update but there are a lot of methods inside each image which wouldn't necessarily work
+    #     try:
+    #         image_one_coords, image_two_coords = self.cvx.coords()
+    #         if len(image_one_coords) == 3:
+    #             self.image_one.pos=(image_one_coords[0], image_one_coords[1])
+    #             self.
+    #     except:
+    #         pass
+
+    # def test_move(self, dt):
+    #     self.remove_widget(self.image_one)
+    #     self.remove_widget(self.label_one)
+    #     if hasattr(self, 'image_two'):
+    #         self.remove_widget(self.image_two)
+    #         self.remove_widget(self.label_two)
+    #     rw = random.randint(100,500)
+    #     rh = random.randint(100,500)
+    #     ra = random.randint(0,360)
+    #     self.image_one = DisplayImage(coords=(rw,rh), angle=ra)
+    #     self.image_two = DisplayImage(coords=(rh,rw), angle=ra)
+    #     self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size)
+    #     self.label_two = DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_two.size)
+    #     self.add_widget(self.image_one)
+    #     self.add_widget(self.label_one)
+    #     self.add_widget(self.image_two)
+    #     self.add_widget(self.label_two)
 
 
 class Calibration():
     #This class will contain all the business logic required to scale everything else
     pass
 
-class Step():
-    #this class will contain all the logic to get the stuff out of the csv file
-    pass
 
 
 
@@ -287,8 +336,8 @@ class Cvx_comms():
 
 
             self.parts_coords = self.rec_string.split(';')
-            print(self.part_coords)
-            print("Recevied ", len(self.part_coords), "part coordinaates.")
+            #print(self.part_coords)
+            #print("Recevied ", len(self.part_coords), "part coordinaates.")
 
             for part in self.parts_coords:
                 part_one_coords, part_two_coords = part.split(',')
