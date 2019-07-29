@@ -1,0 +1,5 @@
+﻿step_number,image_one_filename,image_one_width,image_one_height,image_one_label_text,image_two_filename,image_two_width,image_two_height,image_two_label_text,instructions
+0,keyence.png,150,100, ,keyence.png,150,100, ,Start the camera trigger and press 'next step' to begin
+1,pen_case.png,120,15,pen body,keyence.png,0,0, ,Perform Pen Case Inspection
+2,pen_case.png,120,15,pen body,pen_cap.png,50,15,pen cap,Assemble Pen Lid onto Pen Case
+3,assembled_pen.png,150,15,assembled pen!,keyence.png,0,0, ,Congratulations! You assembled a pen!

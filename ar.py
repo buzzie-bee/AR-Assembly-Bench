@@ -26,12 +26,15 @@ from kivy.clock import Clock
 import random
 import math
 import numpy
+import pandas
 
 class DisplayImage(Image):
 
     def __init__(self,image_num=1,coords=(620,360), angle=315,filename='keyence.png',**kwargs):
         image = ImageProps()
         self.source=filename
+        
+        #TODO - change the size to be a scaled thing
         self.size= image.size
         self.size_hint=(None,None)
         self.allow_stretch=(True)
@@ -173,10 +176,10 @@ class MyLayout(FloatLayout):
         self.add_widget(self.image_one)
         self.label_one_text = ''
         self.label_two_text=''
-        self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size, label_text=self.label_one_text)
-        self.add_widget(self.label_one)
-        self.image_two=DisplayImage()
-        self.label_two=DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_one.size, label_text=self.label_one_text)
+        self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size)
+        self.image_two=DisplayImage(image_num='test')
+        #self.image_two=DisplayImage()
+        self.label_two=DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_one.size)
         self.add_widget(self.image_two)
         self.add_widget(self.label_two)
 
@@ -198,12 +201,9 @@ class MyLayout(FloatLayout):
 
     def next_step(self, *args):
         if self.step.step_count < self.step.max_step:
-            print('current step is: ', self.step.step_count)
             self.step.increment()
-            print('increased step to : ', self.step.step_count)
         else:
             self.step.reset()
-            print('reset steps to :', self.step.step_count)
 
     def remove_calibration(self, *args):
         self.remove_widget(self.calibration)
@@ -212,18 +212,18 @@ class MyLayout(FloatLayout):
     def move_images(self, image_one):
         try:
             image_one_coords, image_two_coords = self.cvx.coords()
-            image_one_filename, image_two_filename = self.step.filenames()
-            label_one_text, label_two_text = self.step.labels()
+            image_one_filename, label_one_text, image_two_filename, label_two_text = self.step.get_step_properties()
+            print(image_one_filename, label_one_text, image_two_filename, label_two_text)
 
             if len(image_one_coords) == 3:
                 self.remove_widget(self.image_one)
                 self.remove_widget(self.label_one)
                 self.remove_widget(self.image_two)
                 self.remove_widget(self.label_two)
-                self.image_one = DisplayImage(coords=(image_one_coords[0], image_one_coords[1]), angle=image_one_coords[2])
-                self.image_two = DisplayImage(coords=(image_two_coords[0], image_two_coords[1]), angle=image_two_coords[2])
-                self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size)
-                self.label_two = DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_two.size)
+                self.image_one = DisplayImage(coords=(image_one_coords[0], image_one_coords[1]), angle=image_one_coords[2], filename=image_one_filename)
+                self.image_two = DisplayImage(coords=(image_two_coords[0], image_two_coords[1]), angle=image_two_coords[2], filename=image_two_filename)
+                self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size, label_text=label_one_text)
+                self.label_two = DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_two.size, label_text=label_two_text)
                 self.add_widget(self.image_one)
                 self.add_widget(self.label_one)
                 self.add_widget(self.image_two)
@@ -237,6 +237,8 @@ class Step():
     def __init__(self, *args):
         self.step_count = 0
         self.max_step=10
+        self.filenames = 'keyence.png', 'keyence.png'
+        self.labels = '',''
 
     def max_step(self):
         return self.max_step
@@ -244,17 +246,30 @@ class Step():
     def set_max_step(self, max_steps=10):
         self.max_step = max_steps
 
-    def filenames(self, *args):
-        return 'keyence.png', 'keyence.png'
+    def get_step_properties(self):
+        steps_list = pandas.read_csv('steps.csv', index_col='step_number')
+        
+        self.set_max_step(steps_list.shape[0] - 1)
+        print("max step count is: ", self.max_step)
 
-    def labels(self):
-        return 'label_one', 'label_two'
+        step_dict = steps_list.loc[int(self.step_count)]
+
+        image_one_filename = step_dict['image_one_filename']
+        image_two_filename = step_dict['image_two_filename']
+        label_one_text = step_dict['image_one_label_text']
+        print("label one text is: ", label_one_text)
+        label_two_text = step_dict['image_two_label_text']
+
+        return image_one_filename, label_one_text, image_two_filename, label_two_text
 
     def increment(self, *args):
         self.step_count += 1
 
     def reset(self, new_starting_step=0):
         self.step_count = new_starting_step
+
+
+
     # def test_move_images(self, *args):
 
     #     ## Had an idea to not delete and draw new images every update, scrapping it for now. I can change image properties (i.e. coords) and have 
