@@ -1,6 +1,6 @@
 from kivy.config import Config
-screen_width = 1240
-screen_height = 720
+screen_width = 1013
+screen_height = 850
 Config.set('graphics', 'resizable', '0') #0 being off 1 being on as in true/false
 Config.set('graphics', 'width', str(screen_width))
 Config.set('graphics', 'height', str(screen_height))
@@ -27,11 +27,12 @@ import random
 import math
 import numpy
 import pandas
+from PIL import Image as PILImage
 
 class DisplayImage(Image):
 
-    def __init__(self,image_num=1,coords=(620,360), angle=315,filename='keyence.png',**kwargs):
-        image = ImageProps()
+    def __init__(self,image_num=1,coords=(620,360), angle=315,filename='keyence.png', object_width = 100, object_height=200, **kwargs):
+        image = ImageProps(filename=filename, object_width=object_width, object_height=object_height)
         self.source=filename
         
         #TODO - change the size to be a scaled thing
@@ -58,15 +59,20 @@ class DisplayImage(Image):
             Line(points=image.rectangle_vertex(image_size = self.size, image_pos = self.coords, image_angle = self.angle), width=1)
             
             #center line:
-            Line(points=(620,0,620,720), width=1)
+            # turned off since the screen size change
+            # Line(points=(620,0,620,720), width=1)
             
 
 class ImageProps():
 
-    def __init__(self, image_number=1, scale_f=1):
+    def __init__(self, filename='keyence.png', object_width=100, object_height=100):
 
         #print("looking up image props")
-        self.size = (100,20)
+        with PILImage.open(filename) as image:
+            width, height = image.size
+
+        self.size = scale.scale_image(width, height, object_width, object_height)
+        #self.size = (width,height)
         self.offset = (self.size[0]/2,self.size[1]/2)
         #self.offset = (0,0)
         self.filename = 'keyence.png'
@@ -146,7 +152,7 @@ class CalibrationLine(Button):
         super(CalibrationLine, self).__init__(**kwargs)
         with self.canvas.after:
             Color(1,0,0,1, mode='rgba')
-            Line(points=(120,5,1120,5), width=5)
+            Line(points=(7,5,1007,5), width=5)
 
 
 class NextStepButton(Button):
@@ -210,18 +216,21 @@ class MyLayout(FloatLayout):
         #print('removing button!')
 
     def move_images(self, image_one):
-        try:
-            image_one_coords, image_two_coords = self.cvx.coords()
-            image_one_filename, label_one_text, image_two_filename, label_two_text = self.step.get_step_properties()
-            print(image_one_filename, label_one_text, image_two_filename, label_two_text)
 
+        try:
+            raw_image_one_coords, raw_image_two_coords = self.cvx.coords()
+            image_one_coords = scale.scale_coordinates(raw_image_one_coords[0],raw_image_one_coords[1],raw_image_one_coords[2])
+            image_two_coords = scale.scale_coordinates(raw_image_two_coords[0],raw_image_two_coords[1],raw_image_two_coords[2])
+
+            image_one_filename, object_one_width, object_one_height, label_one_text, image_two_filename, object_two_width, object_two_height, label_two_text = self.step.get_step_properties()
+            print(image_one_filename, object_one_width, object_one_height, label_one_text, image_two_filename, object_two_width, object_two_height, label_two_text)
             if len(image_one_coords) == 3:
                 self.remove_widget(self.image_one)
                 self.remove_widget(self.label_one)
                 self.remove_widget(self.image_two)
                 self.remove_widget(self.label_two)
-                self.image_one = DisplayImage(coords=(image_one_coords[0], image_one_coords[1]), angle=image_one_coords[2], filename=image_one_filename)
-                self.image_two = DisplayImage(coords=(image_two_coords[0], image_two_coords[1]), angle=image_two_coords[2], filename=image_two_filename)
+                self.image_one = DisplayImage(coords=(image_one_coords[0], image_one_coords[1]), angle=image_one_coords[2], filename=image_one_filename, object_width=object_one_width, object_height=object_one_height)
+                self.image_two = DisplayImage(coords=(image_two_coords[0], image_two_coords[1]), angle=image_two_coords[2], filename=image_two_filename, object_width=object_two_width, object_height=object_two_height)
                 self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size, label_text=label_one_text)
                 self.label_two = DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_two.size, label_text=label_two_text)
                 self.add_widget(self.image_one)
@@ -255,12 +264,16 @@ class Step():
         step_dict = steps_list.loc[int(self.step_count)]
 
         image_one_filename = step_dict['image_one_filename']
-        image_two_filename = step_dict['image_two_filename']
+        object_one_width = int(step_dict['image_one_width'])
+        object_one_height = int(step_dict['image_one_height'])
         label_one_text = step_dict['image_one_label_text']
-        print("label one text is: ", label_one_text)
+
+        image_two_filename = step_dict['image_two_filename']
+        object_two_width = int(step_dict['image_one_width'])
+        object_two_height = int(step_dict['image_one_height'])
         label_two_text = step_dict['image_two_label_text']
 
-        return image_one_filename, label_one_text, image_two_filename, label_two_text
+        return image_one_filename, object_one_width, object_one_height, label_one_text, image_two_filename, object_two_width, object_two_height, label_two_text
 
     def increment(self, *args):
         self.step_count += 1
@@ -270,45 +283,56 @@ class Step():
 
 
 
-    # def test_move_images(self, *args):
-
-    #     ## Had an idea to not delete and draw new images every update, scrapping it for now. I can change image properties (i.e. coords) and have 
-    #     ## that update but there are a lot of methods inside each image which wouldn't necessarily work
-    #     try:
-    #         image_one_coords, image_two_coords = self.cvx.coords()
-    #         if len(image_one_coords) == 3:
-    #             self.image_one.pos=(image_one_coords[0], image_one_coords[1])
-    #             self.
-    #     except:
-    #         pass
-
-    # def test_move(self, dt):
-    #     self.remove_widget(self.image_one)
-    #     self.remove_widget(self.label_one)
-    #     if hasattr(self, 'image_two'):
-    #         self.remove_widget(self.image_two)
-    #         self.remove_widget(self.label_two)
-    #     rw = random.randint(100,500)
-    #     rh = random.randint(100,500)
-    #     ra = random.randint(0,360)
-    #     self.image_one = DisplayImage(coords=(rw,rh), angle=ra)
-    #     self.image_two = DisplayImage(coords=(rh,rw), angle=ra)
-    #     self.label_one = DisplayLabel(image_coords=self.image_one.coords, image_angle=self.image_one.angle, image_size=self.image_one.size)
-    #     self.label_two = DisplayLabel(image_coords=self.image_two.coords, image_angle=self.image_two.angle, image_size=self.image_two.size)
-    #     self.add_widget(self.image_one)
-    #     self.add_widget(self.label_one)
-    #     self.add_widget(self.image_two)
-    #     self.add_widget(self.label_two)
-
-
-class Calibration():
+class Scaling():
     #This class will contain all the business logic required to scale everything else
-    pass
+    def __init__(self, **kwargs):
+        #FOR NOW
+        #CHANGE THIS VALUE AFTER MEASURING SCREEN AND RESTART PROGRAM
+        measured_line_width_mm=1150
+
+        scale_line_width_pixels = 1000
+        self.pixels_per_mm = measured_line_width_mm / scale_line_width_pixels
 
 
+        camera_width=2432
+        camera_height=2040
+        self.scaled_ratio_x = camera_width / screen_width
+        self.scaled_ratio_y = camera_height / screen_height
 
+        # screen_width = 1013
+        # screen_height = 850
+        #camera field of view in pixels:
+        # width = 2432
+        # height = 2040
 
+        camera_width=2432
+        camera_height=2040
+        
+    def scale_coordinates(self, camera_x, camera_y, angle):
+        #get the x,y coords from the camera and scale them to accurately portray them on the screen
 
+        
+        scaled_x = camera_x / self.scaled_ratio_x
+        scaled_y = camera_y / self.scaled_ratio_y
+
+        # #Potentially needed feature! Offset camera x,y by some pixels to account for difference in mounting position of camera
+        # offset_x = -100
+        # offset_y = +50
+
+        # scaled_x += offset_x
+        # scaled_y += offset_y
+
+        return int(scaled_x), int(scaled_y), angle
+
+    def scale_image(self, image_width, image_height, object_width, object_height):
+        px_to_width_ratio = image_width / object_width
+        px_to_height_ratio = image_height / object_height
+        screen_width_ratio = self.pixels_per_mm / px_to_width_ratio
+        screen_height_ratio = self.pixels_per_mm / px_to_width_ratio
+        scaled_width = screen_width_ratio * image_width
+        scaled_height = screen_height_ratio * image_height
+
+        return int(scaled_width), int(scaled_height)
 
 class Cvx_comms():
 
@@ -326,12 +350,17 @@ class Cvx_comms():
     def coords(self):
         ### TESTING IF STATEMENT.
         ### ONCE SERIAL PORT IS CONNECTED, REMOVE THIS!!!
+
+
+        camera_width=2432
+        camera_height=2040
+
         if True:
-            im1x = random.randint(100,500)
-            im1y = random.randint(100,500)
+            im1x = random.randint(100,2432)
+            im1y = random.randint(100,2040)
             im1a = random.randint(0,360)
-            im2x = random.randint(100,500)
-            im2y = random.randint(100,500)
+            im2x = random.randint(100,2432)
+            im2y = random.randint(100,2040)
             im2a = random.randint(0,360)
 
             return [im1x, im1y, im1a], [im2x, im2y,im2a]
@@ -339,11 +368,6 @@ class Cvx_comms():
         #checks if there is a waiting string, if there is it parses it out into coords and returns it
         try:
             self.rec_string = self.get_string_from_serial()    
-             
-
-            # trash_chars = {'\r': '', '\n': '', '+':'','-':''}
-            # for a,b in trash_chars.items():
-            #     rec_string = rec_string.replace(a, b)
 
             trash_chars = ['\r', '\n', '+', '-']
             for char in trash_chars:
@@ -351,24 +375,12 @@ class Cvx_comms():
 
 
             self.parts_coords = self.rec_string.split(';')
-            #print(self.part_coords)
-            #print("Recevied ", len(self.part_coords), "part coordinaates.")
 
             for part in self.parts_coords:
                 part_one_coords, part_two_coords = part.split(',')
                 return part_one_coords, part_two_coords
-                #kivy.do_stuff_with_coords(coords[0], coords[1], coords[2])
         except:
             pass
-
-
-# cvx = Cvx_comms()
-# #kivy = Kivy()
-
-# string = '+620,-360,0;-456,-123,+50\r\n'
-
-
-# cvx.extract_coords(string)
 
         
 class ARDemo(App):
@@ -378,6 +390,9 @@ class ARDemo(App):
         return Display
 
 if __name__ == "__main__":
+
+    scale = Scaling()
+    # print("scaled x,y = ", scale.scale_coordinates(1,2,3))
     
     #Before launching GUI open serial connection
     print("Connecting to serial device.")
